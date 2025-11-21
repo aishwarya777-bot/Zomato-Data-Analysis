@@ -1,0 +1,139 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+!pip install flask flask-cors pandas flask-ngrok
+!pip install matplotlib
+!pip install seaborn
+
+from flask import Flask, request, jsonify # Flask framework + request handling + JSON responses
+from flask_cors import CORS  # Allow frontend-backend communication
+import pandas as pd # Data handling (CSV)
+import os  # File handling
+
+# Initialize Flask app
+app = Flask(__name__)
+CORS(app)  # Enable CORS
+
+# File path for storing uploaded CSV
+DATA_PATH = "/content/drive/MyDrive/Zomato/uploaded_data.csv"
+
+# 📥 File Upload API
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:  # Check if file part exists
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']  # Get uploaded file
+    if file.filename == '': # Check if filename is empty
+        return jsonify({"error": "No selected file"}), 400
+
+    # Read and clean the CSV
+    # The file should be read directly from the request files.
+    df = pd.read_csv(file)
+    # Remove columns whose names contain 'Unnamed'
+    df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+    df.to_csv(DATA_PATH, index=False)  # Save cleaned CSV
+
+    return jsonify({"message": "File uploaded and processed successfully"}), 200
+
+import pandas as pd # Import pandas for data handling
+
+# Load CSV from Google Drive
+df = pd.read_csv("/content/drive/MyDrive/Zomato/uploaded_data.csv")
+print(df.head()) # Print first 5 rows of the dataset
+
+# 📤 Data Retrieval API
+@app.route('/data', methods=['GET'])
+def get_data():
+    if not os.path.exists(DATA_PATH):  # Check if file exists
+        return jsonify({"error": "No data found. Upload first."}), 404
+
+    df = pd.read_csv(DATA_PATH)  # Read stored CSV
+    return df.to_json(orient="records") # Return data as JSON
+
+Visualisation
+
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Load your dataset
+df = pd.read_csv("/content/drive/MyDrive/Zomato/uploaded_data.csv")
+
+# Set figure size
+figsize = (8, 5)
+
+# ⭐ Dine Rating Distribution
+if 'dine_rating' in df:
+    plt.figure(figsize=figsize)
+    sns.histplot(df['dine_rating'].dropna(), bins=10, kde=True, color='skyblue')
+    plt.title("Dine Rating Distribution")
+    plt.xlabel("Dine Rating")
+    plt.ylabel("Count")
+    plt.show()
+
+    # 🛵 Delivery Rating Distribution
+if 'delivery_rating' in df:
+    plt.figure(figsize=figsize)
+    sns.histplot(df['delivery_rating'].dropna(), bins=10, kde=True, color='salmon')
+    plt.title("Delivery Rating Distribution")
+    plt.xlabel("Delivery Rating")
+    plt.ylabel("Count")
+    plt.show()
+
+    # 💰 Average Cost by Restaurant Type
+if 'Cost (RS)' in df and 'rest_type' in df:
+    rest_df = df[['rest_type', 'Cost (RS)']].dropna()
+    rest_df['rest_type'] = rest_df['rest_type'].astype(str).str.split(",")
+    rest_df = rest_df.explode('rest_type')
+    rest_df['rest_type'] = rest_df['rest_type'].str.strip()
+    avg_cost = rest_df.groupby('rest_type')['Cost (RS)'].mean().sort_values(ascending=False).head(10)
+
+    plt.figure(figsize=figsize)
+    sns.barplot(x=avg_cost.values, y=avg_cost.index, palette="Spectral")
+    plt.title("Avg. Cost by Restaurant Type (Top 10)")
+    plt.xlabel("Average Cost (Rs)")
+    plt.ylabel("Restaurant Type")
+    plt.show()
+
+    # 📍 Top Locations by Outlet Count
+if 'loc' in df:
+    loc_count = df['loc'].value_counts().head(10)
+    plt.figure(figsize=figsize)
+    sns.barplot(x=loc_count.values, y=loc_count.index, palette="magma")
+    plt.title("Top 10 Locations by Restaurant Count")
+    plt.xlabel("Number of Outlets")
+    plt.ylabel("Location")
+    plt.show()
+
+    # 📈 Correlation Heatmap (Rating, Cost, Votes)
+corr_cols = ['dine_rating', 'delivery_rating', 'Cost (RS)', 'votes']
+corr_cols = [col for col in corr_cols if col in df.columns]
+corr_df = df[corr_cols].dropna()
+
+if not corr_df.empty:
+    plt.figure(figsize=(6, 4))
+    sns.heatmap(corr_df.corr(), annot=True, cmap='coolwarm')
+    plt.title("Correlation Heatmap")
+    plt.show()
+
+    # 🍛 Cuisine Frequency (Top 15)
+if 'cuisine' in df:
+    cuisines_cleaned = df['cuisine'].dropna().str.lower().str.split(",").explode().str.strip()
+    cuisines_cleaned = cuisines_cleaned[cuisines_cleaned != ""]
+    cuisine_freq = cuisines_cleaned.value_counts().head(15)
+
+    plt.figure(figsize=figsize)
+    sns.barplot(x=cuisine_freq.values, y=cuisine_freq.index.str.title(), palette="Set3")
+    plt.title("Top 15 Cuisines Frequency")
+    plt.xlabel("Count")
+    plt.ylabel("Cuisine")
+    plt.show()
+
+    
+
+
+
+
+
+    
